@@ -11,13 +11,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun App(viewModel: PostViewModel = viewModel { PostViewModel() }) {
-    val posts by viewModel.posts.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     var userIdInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
@@ -56,36 +56,78 @@ fun App(viewModel: PostViewModel = viewModel { PostViewModel() }) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    itemsIndexed(posts) { index, post ->
-                        PostItem(post)
+                if (uiState.error != null && uiState.posts.isEmpty()) {
+                    ErrorView(message = uiState.error!!, onRetry = { viewModel.retry() })
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        itemsIndexed(uiState.posts) { index, post ->
+                            PostItem(post)
 
-                        // Infinite scroll trigger
-                        if (index == posts.lastIndex && !isLoading) {
-                            LaunchedEffect(Unit) {
-                                viewModel.loadPosts()
+                            // Infinite scroll trigger
+                            if (index == uiState.posts.lastIndex && !uiState.isLoading && !uiState.endReached) {
+                                LaunchedEffect(Unit) {
+                                    viewModel.loadPosts()
+                                }
                             }
                         }
-                    }
 
-                    if (isLoading) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
+                        if (uiState.isLoading) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator()
+                                }
+                            }
+                        }
+
+                        if (uiState.error != null && uiState.posts.isNotEmpty()) {
+                            item {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = uiState.error!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    TextButton(onClick = { viewModel.retry() }) {
+                                        Text("Tentar carregar mais")
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ErrorView(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = message,
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onRetry) {
+            Text("Tentar Novamente")
         }
     }
 }
